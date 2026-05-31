@@ -4,11 +4,10 @@ pragma solidity ^0.8.27;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {ERC20Burnable} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import {ERC20Pausable} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Pausable.sol";
 
 /// @custom:security-contact az0006t@protonmail.com
-contract XCashKlassic is ERC20, ERC20Burnable, ERC20Pausable, Ownable {
+contract XCashKlassic is ERC20, ERC20Pausable, Ownable {
     constructor(address initialOwner)
         ERC20("XCash Klassic", "wXCK")
         Ownable(initialOwner)
@@ -26,7 +25,9 @@ contract XCashKlassic is ERC20, ERC20Burnable, ERC20Pausable, Ownable {
         _mint(to, amount);
     }
 
-    // The following functions are overrides required by Solidity.
+    function burn(address from, uint256 amount) public onlyOwner {
+        _burn(from, amount);
+    }
 
     function _update(address from, address to, uint256 value)
         internal
