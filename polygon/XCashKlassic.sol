@@ -25,8 +25,12 @@ contract XCashKlassic is ERC20, ERC20Pausable, Ownable {
         _mint(to, amount);
     }
 
-    function burn(uint256 amount) public onlyOwner {
+    function burn(uint256 amount) public {
         _burn(msg.sender, amount);
+    }
+
+    function decimals() public pure override returns (uint8) {
+        return 6;
     }
 
     function _update(address from, address to, uint256 value)
