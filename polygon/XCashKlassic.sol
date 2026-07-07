@@ -99,7 +99,16 @@ contract XCashKlassic is ERC20, ERC20Pausable, AccessControl {
 
     function bridgeBurn(uint256 amount, string calldata xckAddress) external whenNotPaused {
         if (amount == 0) revert InvalidAmount();
-        if (bytes(xckAddress).length == 0) revert InvalidXckAddress();
+        
+        bytes calldata addr = bytes(xckAddress);
+        if (
+            addr.length != 98 ||
+            addr[0] != bytes1("X") ||
+            addr[1] != bytes1("C") ||
+            addr[2] != bytes1("K")
+        ) {
+            revert InvalidXckAddress();
+        }
 
         _burn(msg.sender, amount);
 
