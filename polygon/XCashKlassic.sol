@@ -5,45 +5,105 @@ pragma solidity ^0.8.27;
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {ERC20Pausable} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Pausable.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
 /// @custom:security-contact az0006t@protonmail.com
 contract XCashKlassic is ERC20, ERC20Pausable, AccessControl {
-    /// @notice Authorized to mint wrapped XCK.
-    /// @dev Intended to be assigned to the bridge wallet or bridge contract.
-    bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
-    /// @notice Authorized to pause and unpause transfers in an emergency.
-    /// @dev Intended to be assigned to an emergency administrator.
+    string public constant VERSION = "1.0.1";
+
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
+    bytes32 public constant CLAIM_SIGNER_ROLE = keccak256("CLAIM_SIGNER_ROLE");
 
-    constructor(address initialAdmin)
-        ERC20("XCash Klassic", "wXCK")
-    {
-        require(initialAdmin != address(0), "Admin cannot be zero address");
-        // Initially assign all roles to the admin.
-        // Roles can be separated later without redeploying the token.
+    error InvalidAdmin();
+    error AlreadyClaimed();
+    error InvalidAmount();
+    error ClaimExpired();
+    error InvalidClaimSignature();
+    error InvalidXckAddress();
+
+    mapping(bytes32 => bool) public claimed;
+
+    event BridgeClaimed(
+        bytes32 indexed bridgeId,
+        address indexed recipient,
+        uint256 amount,
+        uint256 deadline
+    );
+
+    event BridgeBurned(
+        address indexed burner,
+        uint256 amount,
+        string xckAddress
+    );
+
+    constructor(address initialAdmin) ERC20("XCash Klassic", "wXCK") {
+        if (initialAdmin == address(0)) revert InvalidAdmin();
+
         _grantRole(DEFAULT_ADMIN_ROLE, initialAdmin);
-        _grantRole(MINTER_ROLE, initialAdmin);
         _grantRole(PAUSER_ROLE, initialAdmin);
+        _grantRole(CLAIM_SIGNER_ROLE, initialAdmin);
     }
 
-    function pause() public onlyRole(PAUSER_ROLE) {
+    function pause() external onlyRole(PAUSER_ROLE) {
         _pause();
     }
 
-    function unpause() public onlyRole(PAUSER_ROLE) {
+    function unpause() external onlyRole(PAUSER_ROLE) {
         _unpause();
     }
 
-    function mint(address to, uint256 amount) public onlyRole(MINTER_ROLE) {
-        require(to != address(0), "Invalid recipient");
-        require(amount > 0, "Invalid amount");
-        _mint(to, amount);
+    function claim(
+        bytes32 bridgeId,
+        uint256 amount,
+        uint256 deadline,
+        bytes calldata signature
+    ) external whenNotPaused {
+        if (claimed[bridgeId]) revert AlreadyClaimed();
+        if (amount == 0) revert InvalidAmount();
+        if (block.timestamp > deadline) revert ClaimExpired();
+
+        bytes32 digest = keccak256(
+            abi.encode(
+                block.chainid,
+                address(this),
+                bridgeId,
+                msg.sender,
+                amount,
+                deadline
+            )
+        );
+
+        bytes32 ethSignedMessageHash =
+            MessageHashUtils.toEthSignedMessageHash(digest);
+
+        address signer = ECDSA.recover(ethSignedMessageHash, signature);
+
+        if (!hasRole(CLAIM_SIGNER_ROLE, signer)) {
+            revert InvalidClaimSignature();
+        }
+
+        claimed[bridgeId] = true;
+
+        _mint(msg.sender, amount);
+
+        emit BridgeClaimed(bridgeId, msg.sender, amount, deadline);
     }
 
-    function burn(uint256 amount) public {
-        require(amount > 0, "Invalid amount");
+    function burn(uint256 amount) external {
+        if (amount == 0) revert InvalidAmount();
+
         _burn(msg.sender, amount);
+    }
+
+    function bridgeBurn(uint256 amount, string calldata xckAddress) external whenNotPaused {
+        if (amount == 0) revert InvalidAmount();
+        if (bytes(xckAddress).length == 0) revert InvalidXckAddress();
+
+        _burn(msg.sender, amount);
+
+        emit BridgeBurned(msg.sender, amount, xckAddress);
     }
 
     function decimals() public pure override returns (uint8) {
