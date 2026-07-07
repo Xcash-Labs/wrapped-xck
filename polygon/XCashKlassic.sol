@@ -22,6 +22,7 @@ contract XCashKlassic is ERC20, ERC20Pausable, AccessControl {
     error ClaimExpired();
     error InvalidClaimSignature();
     error InvalidXckAddress();
+    error InvalidBridgeId();
 
     mapping(bytes32 => bool) public claimed;
 
@@ -33,11 +34,12 @@ contract XCashKlassic is ERC20, ERC20Pausable, AccessControl {
     );
 
     event BridgeBurned(
-        address indexed burner,
+        bytes32 indexed bridgeId,
+        address indexed sender,
         uint256 amount,
         string xckAddress
     );
-
+    
     constructor(address initialAdmin) ERC20("XCash Klassic", "wXCK") {
         if (initialAdmin == address(0)) revert InvalidAdmin();
 
@@ -91,16 +93,18 @@ contract XCashKlassic is ERC20, ERC20Pausable, AccessControl {
         emit BridgeClaimed(bridgeId, msg.sender, amount, deadline);
     }
 
-    function burn(uint256 amount) external {
+    function burn(uint256 amount) external whenNotPaused {
         if (amount == 0) revert InvalidAmount();
 
         _burn(msg.sender, amount);
     }
 
-    function bridgeBurn(uint256 amount, string calldata xckAddress) external whenNotPaused {
+    function bridgeBurn(bytes32 bridgeId, uint256 amount, string calldata xckAddress) external whenNotPaused {
+        if (bridgeId == bytes32(0)) revert InvalidBridgeId();
         if (amount == 0) revert InvalidAmount();
-        
+
         bytes calldata addr = bytes(xckAddress);
+
         if (
             addr.length != 98 ||
             addr[0] != bytes1("X") ||
@@ -112,7 +116,7 @@ contract XCashKlassic is ERC20, ERC20Pausable, AccessControl {
 
         _burn(msg.sender, amount);
 
-        emit BridgeBurned(msg.sender, amount, xckAddress);
+        emit BridgeBurned(bridgeId, msg.sender, amount, xckAddress);
     }
 
     function decimals() public pure override returns (uint8) {
