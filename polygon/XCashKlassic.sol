@@ -11,7 +11,7 @@ import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/Messa
 /// @custom:security-contact az0006t@protonmail.com
 contract XCashKlassic is ERC20, ERC20Pausable, AccessControl {
 
-    string public constant VERSION = "1.0.1";
+    string public constant VERSION = "1.0.7";
 
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant CLAIM_SIGNER_ROLE = keccak256("CLAIM_SIGNER_ROLE");
